@@ -11,10 +11,18 @@ load_dotenv()
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from app.database.base import Base
+from app.database.base import Base, UUIDType
 from app.models import *  # noqa: F401, F403
 
 config = context.config
+
+
+def render_item(type_, obj, autogen_context):
+    """Ensure UUIDType renders as UUIDType() instead of the full module path."""
+    if type_ == "type" and isinstance(obj, UUIDType):
+        autogen_context.imports.add("from app.database.base import UUIDType")
+        return "UUIDType()"
+    return False
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
@@ -56,7 +64,11 @@ def run_migrations_online() -> None:
         poolclass=pool.NullPool,
     )
     with connectable.connect() as connection:
-        context.configure(connection=connection, target_metadata=target_metadata)
+        context.configure(
+            connection=connection,
+            target_metadata=target_metadata,
+            render_item=render_item,
+        )
         with context.begin_transaction():
             context.run_migrations()
 
