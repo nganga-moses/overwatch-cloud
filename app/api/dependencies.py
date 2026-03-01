@@ -84,7 +84,7 @@ def get_dashboard_user(
             dashboard_user = DashboardUser(
                 supabase_uid=supabase_user.id,
                 email=supabase_user.email or "",
-                role="customer_admin",
+                role="user",
             )
             db.add(dashboard_user)
             db.commit()
