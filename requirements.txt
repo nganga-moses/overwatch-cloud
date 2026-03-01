@@ -17,7 +17,9 @@ google-cloud-storage==2.19.0
 
 # Security
 passlib[bcrypt]==1.7.4
-PyJWT==2.10.1
+
+# Supabase (dashboard auth via get_user() validation)
+supabase==2.28.0
 
 # Observability
 prometheus-fastapi-instrumentator==7.1.0
