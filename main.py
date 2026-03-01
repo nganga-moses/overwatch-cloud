@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from prometheus_fastapi_instrumentator import Instrumentator
 
-from app.api import auth, kits, sync, venues, operations, world_model, blobs
+from app.api import admin, auth, blobs, kits, operations, sync, venues, workstations, world_model
 from app.core.config import settings
 from app.observability import setup_structured_logging
 from app.services.blob_service import blob_service
@@ -91,13 +91,15 @@ async def validation_error_handler(request: Request, exc: RequestValidationError
 # Routers
 # ---------------------------------------------------------------------------
 
+app.include_router(admin.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(blobs.router, prefix=settings.API_V1_PREFIX)
 app.include_router(kits.router, prefix=settings.API_V1_PREFIX)
+app.include_router(operations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(sync.router, prefix=settings.API_V1_PREFIX)
 app.include_router(venues.router, prefix=settings.API_V1_PREFIX)
-app.include_router(operations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(workstations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(world_model.router, prefix=settings.API_V1_PREFIX)
-app.include_router(blobs.router, prefix=settings.API_V1_PREFIX)
 
 # ---------------------------------------------------------------------------
 # Prometheus

@@ -2,12 +2,14 @@
 
 import hashlib
 
+import jwt
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.database.session import get_db
 from app.models.customer import Customer
+from app.models.dashboard_user import DashboardUser
 
 
 def _hash_api_key(key: str) -> str:
@@ -28,3 +30,41 @@ def get_current_customer(
             detail="Invalid API key",
         )
     return customer
+
+
+def get_dashboard_user(
+    authorization: str = Header(...),
+    db: Session = Depends(get_db),
+) -> DashboardUser:
+    """Validate Supabase JWT and return the DashboardUser."""
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid auth header")
+
+    token = authorization[7:]
+    if not settings.SUPABASE_JWT_SECRET:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="JWT secret not configured")
+
+    try:
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            audience="authenticated",
+        )
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+    supabase_uid = payload.get("sub")
+    if not supabase_uid:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing sub claim")
+
+    user = db.query(DashboardUser).filter(
+        DashboardUser.supabase_uid == supabase_uid,
+        DashboardUser.is_active == True,
+    ).first()
+    if not user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Dashboard user not found")
+
+    return user

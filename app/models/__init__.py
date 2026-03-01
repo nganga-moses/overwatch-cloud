@@ -18,6 +18,9 @@ from .wm_node import WMNode
 from .wm_edge import WMEdge
 from .sync_event import SyncEvent
 from .ingestion_job import IngestionJob
+from .operator import Operator
+from .activation_code import ActivationCode
+from .dashboard_user import DashboardUser
 
 __all__ = [
     "Customer",
@@ -38,4 +41,7 @@ __all__ = [
     "WMEdge",
     "SyncEvent",
     "IngestionJob",
+    "Operator",
+    "ActivationCode",
+    "DashboardUser",
 ]

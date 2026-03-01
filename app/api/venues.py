@@ -538,7 +538,7 @@ def get_page_count(
 
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
     try:
-        blob_service.client.download_file(blob_service.bucket, body.blob_key, tmp.name)
+        blob_service.download_to_file(body.blob_key, tmp.name)
         tmp.close()
 
         from app.services.floor_plan_ingestion import get_pdf_page_count
@@ -574,9 +574,7 @@ def ingest_floor_plan(
 
     try:
         tmp = tempfile.NamedTemporaryFile(delete=False, suffix=f".{body.format}")
-        blob_service.client.download_file(
-            blob_service.bucket, body.blob_key, tmp.name,
-        )
+        blob_service.download_to_file(body.blob_key, tmp.name)
         tmp.close()
 
         from app.services.floor_plan_ingestion import ingest
