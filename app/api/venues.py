@@ -211,6 +211,7 @@ class IngestRequest(BaseModel):
     format: str  # dxf, pdf, image
     floor_level: int = 0
     scale_m_per_unit: float | None = None
+    page_number: int | None = None  # None = all pages (PDF only), N = specific page (1-indexed)
 
 
 class IngestResponse(BaseModel):
@@ -219,7 +220,12 @@ class IngestResponse(BaseModel):
     zone_count: int | None = None
     connection_count: int | None = None
     perch_point_count: int | None = None
+    pages_processed: int | None = None
     error_message: str | None = None
+
+
+class PageCountResponse(BaseModel):
+    page_count: int
 
 
 # ---------------------------------------------------------------------------
@@ -517,6 +523,35 @@ def delete_perch_point(
 # Floor plan ingestion
 # ---------------------------------------------------------------------------
 
+@router.post("/{venue_id}/page-count", response_model=PageCountResponse)
+def get_page_count(
+    venue_id: str,
+    body: IngestRequest,
+    customer: Customer = Depends(get_current_customer),
+    db: Session = Depends(get_db),
+):
+    """Get page count for a PDF blob. Returns 1 for non-PDF formats."""
+    _get_venue(db, customer, venue_id)
+
+    if body.format != "pdf":
+        return PageCountResponse(page_count=1)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".pdf")
+    try:
+        blob_service.client.download_file(blob_service.bucket, body.blob_key, tmp.name)
+        tmp.close()
+
+        from app.services.floor_plan_ingestion import get_pdf_page_count
+        count = get_pdf_page_count(tmp.name)
+        return PageCountResponse(page_count=count)
+    finally:
+        import os
+        try:
+            os.unlink(tmp.name)
+        except Exception:
+            pass
+
+
 @router.post("/{venue_id}/ingest", response_model=IngestResponse)
 def ingest_floor_plan(
     venue_id: str,
@@ -553,6 +588,7 @@ def ingest_floor_plan(
             venue_lon=venue.lon or 0.0,
             floor_level=body.floor_level,
             scale_m_per_unit=body.scale_m_per_unit,
+            page_number=body.page_number,
         )
 
         for z in result.zones:
@@ -606,6 +642,9 @@ def ingest_floor_plan(
         venue.floor_plan_source = body.format
         venue.cloud_version += 1
 
+        floor_levels_seen = set(z.floor_level for z in result.zones)
+        pages_processed = len(floor_levels_seen) if floor_levels_seen else 1
+
         job.status = "completed"
         job.zone_count = len(result.zones)
         job.connection_count = len(result.connections)
@@ -620,6 +659,7 @@ def ingest_floor_plan(
             zone_count=job.zone_count,
             connection_count=job.connection_count,
             perch_point_count=job.perch_point_count,
+            pages_processed=pages_processed,
         )
 
     except Exception as e:

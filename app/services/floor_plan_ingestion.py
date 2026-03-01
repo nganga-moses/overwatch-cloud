@@ -100,6 +100,17 @@ def detect_format(file_path: str) -> str:
     return "image"
 
 
+def get_pdf_page_count(file_path: str) -> int:
+    """Return the number of pages in a PDF without fully rendering them."""
+    from pdf2image import pdfinfo_from_path
+
+    try:
+        info = pdfinfo_from_path(file_path)
+        return info.get("Pages", 1)
+    except Exception:
+        return 1
+
+
 def ingest(
     file_path: str,
     fmt: str,
@@ -107,11 +118,15 @@ def ingest(
     venue_lon: float,
     floor_level: int = 0,
     scale_m_per_unit: float | None = None,
+    page_number: int | None = None,
 ) -> IngestionResult:
     if fmt == "dxf":
         return _ingest_dxf(file_path, venue_lat, venue_lon, floor_level, scale_m_per_unit)
     elif fmt == "pdf":
-        return _ingest_pdf(file_path, venue_lat, venue_lon, floor_level, scale_m_per_unit)
+        return _ingest_pdf(
+            file_path, venue_lat, venue_lon, floor_level,
+            scale_m_per_unit, page_number=page_number,
+        )
     else:
         return _ingest_image(file_path, venue_lat, venue_lon, floor_level, scale_m_per_unit)
 
@@ -223,16 +238,46 @@ def _ingest_pdf(
     venue_lon: float,
     floor_level: int,
     scale: float | None,
+    page_number: int | None = None,
 ) -> IngestionResult:
+    """Process a PDF floor plan.
+
+    page_number=None (default): process ALL pages, each page = one floor
+                                starting from floor_level.
+    page_number=N:              process only page N (1-indexed), assigned to floor_level.
+    """
     from pdf2image import convert_from_path
 
-    images = convert_from_path(file_path, dpi=200, first_page=1, last_page=1)
+    if page_number is not None:
+        images = convert_from_path(file_path, dpi=200, first_page=page_number, last_page=page_number)
+        if not images:
+            raise ValueError(f"Could not extract page {page_number} from PDF")
+
+        img_bgr = cv2.cvtColor(np.array(images[0]), cv2.COLOR_RGB2BGR)
+        return _process_image(img_bgr, venue_lat, venue_lon, floor_level, scale)
+
+    images = convert_from_path(file_path, dpi=200)
     if not images:
         raise ValueError("Could not extract any pages from PDF")
 
-    img_array = np.array(images[0])
-    img_bgr = cv2.cvtColor(img_array, cv2.COLOR_RGB2BGR)
-    return _process_image(img_bgr, venue_lat, venue_lon, floor_level, scale)
+    if len(images) == 1:
+        img_bgr = cv2.cvtColor(np.array(images[0]), cv2.COLOR_RGB2BGR)
+        return _process_image(img_bgr, venue_lat, venue_lon, floor_level, scale)
+
+    combined = IngestionResult()
+    for i, img in enumerate(images):
+        current_floor = floor_level + i
+        img_bgr = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+        page_result = _process_image(img_bgr, venue_lat, venue_lon, current_floor, scale)
+
+        for z in page_result.zones:
+            z.name = f"F{current_floor} {z.name}"
+        combined.zones.extend(page_result.zones)
+        combined.connections.extend(page_result.connections)
+        combined.perch_points.extend(page_result.perch_points)
+
+    logger.info("Multi-page PDF: processed %d pages → %d zones", len(images), len(combined.zones))
+    return combined
 
 
 def _ingest_image(
