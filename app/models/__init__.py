@@ -17,6 +17,7 @@ from .weather_observation import WeatherObservation
 from .wm_node import WMNode
 from .wm_edge import WMEdge
 from .sync_event import SyncEvent
+from .ingestion_job import IngestionJob
 
 __all__ = [
     "Customer",
@@ -36,4 +37,5 @@ __all__ = [
     "WMNode",
     "WMEdge",
     "SyncEvent",
+    "IngestionJob",
 ]

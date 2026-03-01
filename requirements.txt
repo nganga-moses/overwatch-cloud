@@ -22,6 +22,13 @@ passlib[bcrypt]==1.7.4
 prometheus-fastapi-instrumentator==7.1.0
 structlog==25.5.0
 
+# Floor plan ingestion
+ezdxf==1.4.2
+pdf2image==1.17.0
+opencv-python-headless==4.11.0.86
+numpy==2.2.3
+shapely==2.0.7
+
 # Testing
 pytest==8.3.4
 pytest-asyncio==0.24.0
